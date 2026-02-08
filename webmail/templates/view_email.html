@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Back Button -->
+            <a href="/?email={{ email_address }}&folder={{ request.args.get('folder', 'inbox') }}" 
+               class="btn btn-back mb-3">
+                <i class="bi bi-arrow-left"></i> Volver a la bandeja
+            </a>
+            
+            <!-- Email Container -->
+            <div class="email-view-container">
+                <!-- Email Header -->
+                <div class="email-header">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h3 class="mb-3">{{ email.subject }}</h3>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="email-info-label">De:</div>
+                            <div class="email-info-value">
+                                {% if email.from_name %}
+                                    {{ email.from_name }} <{{ email.from_email }}>
+                                {% else %}
+                                    {{ email.from_email }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="email-info-label">Para:</div>
+                            <div class="email-info-value">
+                                {% if email.to %}
+                                    {% for recipient in email.to %}
+                                        {% if recipient.name %}
+                                            {{ recipient.name }} <{{ recipient.email }}>
+                                        {% else %}
+                                            {{ recipient.email }}
+                                        {% endif %}
+                                        {% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% elif email.envelope_recipient %}
+                                    {{ email.envelope_recipient }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="email-info-label">Fecha:</div>
+                            <div class="email-info-value">
+                                {{ email.date.strftime('%d/%m/%Y %H:%M:%S') }}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="email-info-label">ID de mensaje:</div>
+                            <div class="email-info-value small text-muted">
+                                {{ email.message_id }}
+                            </div>
+                        </div>
+                        
+                        <!-- Security Verdict -->
+                        {% if email.verdict %}
+                        <div class="col-md-12 mt-3">
+                            <div class="email-info-label mb-2">Verificación de seguridad:</div>
+                            <div>
+                                {% if email.verdict.spf %}
+                                <span class="verdict-badge {{ 'verdict-pass' if email.verdict.spf == 'pass' else ('verdict-fail' if email.verdict.spf == 'fail' else 'verdict-grey') }}">
+                                    SPF: {{ email.verdict.spf|upper }}
+                                </span>
+                                {% endif %}
+                                
+                                {% if email.verdict.dkim %}
+                                <span class="verdict-badge {{ 'verdict-pass' if email.verdict.dkim == 'pass' else ('verdict-fail' if email.verdict.dkim == 'fail' else 'verdict-grey') }}">
+                                    DKIM: {{ email.verdict.dkim|upper }}
+                                </span>
+                                {% endif %}
+                                
+                                {% if email.verdict.dmarc %}
+                                <span class="verdict-badge {{ 'verdict-pass' if email.verdict.dmarc == 'pass' else ('verdict-fail' if email.verdict.dmarc == 'fail' else 'verdict-grey') }}">
+                                    DMARC: {{ email.verdict.dmarc|upper }}
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Email Body -->
+                <div class="email-body">
+                    {% if email.html %}
+                    <!-- HTML Content -->
+                    <div class="email-content">
+                        {{ email.html|safe }}
+                    </div>
+                    {% elif email.text %}
+                    <!-- Text Content -->
+                    <div class="email-content">
+                        <pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word;">{{ email.text }}</pre>
+                    </div>
+                    {% else %}
+                    <div class="text-muted text-center py-5">
+                        <i class="bi bi-envelope-x" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Este correo no tiene contenido</p>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Attachments -->
+                {% if email.attachments %}
+                <div class="email-attachments">
+                    <h5 class="mb-3">
+                        <i class="bi bi-paperclip"></i> Adjuntos ({{ email.attachments|length }})
+                    </h5>
+                    
+                    <div>
+                        {% for attachment in email.attachments %}
+                        <div class="attachment-item">
+                            <i class="bi bi-file-earmark"></i>
+                            {{ attachment.name }}
+                            <span class="text-muted small ms-2">
+                                ({{ attachment.type }})
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Email Headers (Collapsible) -->
+            {% if email.headers %}
+            <div class="mt-4">
+                <div class="card">
+                    <div class="card-header">
+                        <button class="btn btn-link text-decoration-none w-100 text-start" 
+                                type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#emailHeaders">
+                            <i class="bi bi-code-slash"></i> Ver encabezados del correo
+                        </button>
+                    </div>
+                    <div class="collapse" id="emailHeaders">
+                        <div class="card-body">
+                            <pre class="mb-0" style="max-height: 400px; overflow-y: auto;">{{ email.headers|pprint }}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Action Buttons -->
+            <div class="mt-4 d-flex gap-2 flex-wrap">
+                <button class="btn btn-outline-primary">
+                    <i class="bi bi-reply"></i> Responder
+                </button>
+                <button class="btn btn-outline-primary">
+                    <i class="bi bi-reply-all"></i> Responder a todos
+                </button>
+                <button class="btn btn-outline-primary">
+                    <i class="bi bi-forward"></i> Reenviar
+                </button>
+                <button class="btn btn-outline-danger">
+                    <i class="bi bi-trash"></i> Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Process inline images in HTML content
+    document.addEventListener('DOMContentLoaded', function() {
+        const emailContent = document.querySelector('.email-content');
+        if (emailContent) {
+            // Convert inline_map to JSON for JavaScript access
+            const inlineMap = {{ inline_map|tojson|safe }};
+            
+            // Replace cid: references with actual data URLs
+            const images = emailContent.querySelectorAll('img[src^="cid:"]');
+            images.forEach(img => {
+                const cid = img.getAttribute('src').replace('cid:', '');
+                
+                if (inlineMap[cid]) {
+                    const inline = inlineMap[cid];
+                    const dataUrl = `data:${inline.type};base64,${inline.content}`;
+                    img.setAttribute('src', dataUrl);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

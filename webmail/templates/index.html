@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
+                    {% if folder == 'inbox' %}
+                        <i class="bi bi-inbox"></i> Bandeja de entrada
+                    {% elif folder == 'unread' %}
+                        <i class="bi bi-envelope"></i> No leídos
+                    {% else %}
+                        <i class="bi bi-envelope-open"></i> Todos los correos
+                    {% endif %}
+                </h2>
+                <span class="badge bg-primary">{{ total_count }} correos</span>
+            </div>
+            
+            <!-- Search Box -->
+            <div class="search-box">
+                <form method="GET" action="" class="d-flex gap-2">
+                    <input type="hidden" name="email" value="{{ email_address }}">
+                    <input type="hidden" name="folder" value="{{ folder }}">
+                    
+                    <div class="flex-grow-1">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" 
+                                   class="form-control" 
+                                   name="search" 
+                                   placeholder="Buscar por asunto, remitente o contenido..."
+                                   value="{{ search_query }}"
+                                   id="searchInput">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                    
+                    {% if search_query %}
+                    <a href="?email={{ email_address }}&folder={{ folder }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Limpiar
+                    </a>
+                    {% endif %}
+                </form>
+            </div>
+            
+            <!-- Email List -->
+            {% if emails %}
+            <div class="list-group">
+                {% for email in emails %}
+                <a href="/view/{{ email.id }}?email={{ email_address }}" 
+                   class="list-group-item list-group-item-action email-list-item {{ 'unread' if email.unread else '' }}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-1">
+                                <h5 class="email-subject mb-0">
+                                    {{ email.subject }}
+                                </h5>
+                                {% if email.unread %}
+                                <span class="badge bg-warning text-dark ms-2">Nuevo</span>
+                                {% endif %}
+                                {% if email.has_attachments %}
+                                <span class="badge-attachment ms-2">
+                                    <i class="bi bi-paperclip"></i> Adjuntos
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="email-meta d-flex flex-wrap align-items-center gap-3">
+                                <span class="email-sender">
+                                    <i class="bi bi-person"></i>
+                                    {% if email.from_name %}
+                                        {{ email.from_name }}
+                                    {% else %}
+                                        {{ email.from_email }}
+                                    {% endif %}
+                                </span>
+                                
+                                <span class="email-sender">
+                                    <i class="bi bi-envelope"></i>
+                                    Para: {{ email.to_email }}
+                                </span>
+                                
+                                <span class="email-date">
+                                    <i class="bi bi-clock"></i>
+                                    {{ email.date.strftime('%d/%m/%Y %H:%M') }}
+                                </span>
+                            </div>
+                            
+                            <p class="email-snippet mb-0">
+                                {{ email.snippet }}
+                            </p>
+                        </div>
+                        
+                        <div class="ms-3 text-end">
+                            <i class="bi bi-chevron-right text-muted"></i>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" 
+                           href="?email={{ email_address }}&folder={{ folder }}&search={{ search_query }}&page={{ page - 1 }}">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ p }}</span>
+                        </li>
+                        {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                        <li class="page-item">
+                            <a class="page-link" 
+                               href="?email={{ email_address }}&folder={{ folder }}&search={{ search_query }}&page={{ p }}">
+                                {{ p }}
+                            </a>
+                        </li>
+                        {% elif p == 4 or p == total_pages - 3 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" 
+                           href="?email={{ email_address }}&folder={{ folder }}&search={{ search_query }}&page={{ page + 1 }}">
+                            Siguiente <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            
+            {% else %}
+            <!-- Empty State -->
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <h3>No hay correos para mostrar</h3>
+                <p class="lead">
+                    {% if search_query %}
+                        No se encontraron resultados para "{{ search_query }}"
+                    {% else %}
+                        {% if folder == 'unread' %}
+                            No tienes correos no leídos
+                        {% else %}
+                            Tu bandeja de entrada está vacía
+                        {% endif %}
+                    {% endif %}
+                </p>
+                {% if search_query %}
+                <a href="?email={{ email_address }}&folder={{ folder }}" class="btn btn-primary">
+                    <i class="bi bi-arrow-counterclockwise"></i> Limpiar búsqueda
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-focus search input
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.focus();
+        }
+    });
+</script>
+{% endblock %}
