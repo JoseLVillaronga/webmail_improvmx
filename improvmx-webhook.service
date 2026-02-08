@@ -1,0 +1,37 @@
+[Unit]
+Description=ImprovMX Webhook Server
+Documentation=https://github.com/yourusername/webmail_improvmx
+After=network.target mongod.service
+Wants=mongod.service
+
+[Service]
+Type=simple
+User=jose
+Group=jose
+WorkingDirectory=/home/jose/webmail_improvmx
+Environment="PATH=/home/jose/webmail_improvmx/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/jose/webmail_improvmx/.env
+ExecStart=/home/jose/webmail_improvmx/venv/bin/gunicorn -c gunicorn.conf.py app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30
+Restart=always
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=false
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
+ReadWritePaths=/home/jose/webmail_improvmx
+ProtectKernelTunables=false
+ProtectKernelModules=false
+ProtectControlGroups=false
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=improvmx-webhook
+
+[Install]
+WantedBy=multi-user.target
