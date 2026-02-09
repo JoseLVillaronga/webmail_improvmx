@@ -122,11 +122,16 @@
                     <div>
                         {% for attachment in email.attachments %}
                         <div class="attachment-item">
-                            <i class="bi bi-file-earmark"></i>
-                            {{ attachment.name }}
-                            <span class="text-muted small ms-2">
-                                ({{ attachment.type }})
-                            </span>
+                            <a href="{{ url_for('download_attachment', email_id=email.id, attachment_index=loop.index0) }}" 
+                               class="text-decoration-none"
+                               download>
+                                <i class="bi bi-download me-2"></i>
+                                <i class="bi bi-file-earmark"></i>
+                                {{ attachment.name }}
+                                <span class="text-muted small ms-2">
+                                    ({{ attachment.type }})
+                                </span>
+                            </a>
                         </div>
                         {% endfor %}
                     </div>

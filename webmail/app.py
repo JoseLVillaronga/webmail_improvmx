@@ -3,8 +3,9 @@ Webmail Application - ImprovMX
 A webmail interface to view emails stored in MongoDB
 """
 
-from flask import Flask, request, render_template, jsonify, redirect, url_for, flash
+from flask import Flask, request, render_template, jsonify, redirect, url_for, flash, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+import base64
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import os
@@ -362,6 +363,62 @@ def view_email(email_id):
         logger.error(f"Error viewing email: {str(e)}")
         return render_template('error.html',
                               message=f'Error loading email: {str(e)}'), 500
+
+
+@app.route('/download-attachment/<email_id>/<int:attachment_index>')
+@login_required
+def download_attachment(email_id, attachment_index):
+    """Download an attachment from an email"""
+    try:
+        logger.info(f"=== DOWNLOAD ATTACHMENT START ===")
+        logger.info(f"Downloading attachment {attachment_index} from email {email_id}")
+        
+        # Get email from different collections
+        email = (emails_collection.find_one({'_id': ObjectId(email_id)}) or
+                 sent_emails_collection.find_one({'_id': ObjectId(email_id)}) or
+                 draft_emails_collection.find_one({'_id': ObjectId(email_id)}))
+        
+        if not email:
+            logger.error(f"Email {email_id} not found")
+            return render_template('error.html', message='Email not found'), 404
+        
+        # Get attachments list
+        attachments = email.get('attachments', [])
+        
+        if attachment_index >= len(attachments):
+            logger.error(f"Attachment index {attachment_index} out of range (total: {len(attachments)})")
+            return render_template('error.html', message='Attachment not found'), 404
+        
+        # Get the specific attachment
+        attachment = attachments[attachment_index]
+        attachment_name = attachment.get('name', 'attachment')
+        attachment_type = attachment.get('type', 'application/octet-stream')
+        attachment_content = attachment.get('content', '')
+        
+        logger.info(f"Attachment: name={attachment_name}, type={attachment_type}, content_length={len(attachment_content)}")
+        
+        # Decode base64 content
+        try:
+            file_content = base64.b64decode(attachment_content)
+            logger.info(f"Successfully decoded attachment, size: {len(file_content)} bytes")
+        except Exception as e:
+            logger.error(f"Error decoding base64: {str(e)}")
+            return render_template('error.html', message='Error decoding attachment'), 500
+        
+        # Send file
+        from io import BytesIO
+        file_buffer = BytesIO(file_content)
+        
+        return send_file(
+            file_buffer,
+            as_attachment=True,
+            download_name=attachment_name,
+            mimetype=attachment_type
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading attachment: {str(e)}", exc_info=True)
+        return render_template('error.html', message=f'Error downloading attachment: {str(e)}'), 500
 
 
 @app.route('/login', methods=['GET', 'POST'])
