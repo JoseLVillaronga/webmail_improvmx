@@ -106,7 +106,11 @@ def index():
     folder = request.args.get('folder', 'inbox')
     
     # Build base query
-    query = build_email_query(email_address)
+    # Admin users see all emails when folder is 'all'
+    if is_admin() and folder == 'all':
+        query = {}
+    else:
+        query = build_email_query(email_address)
     
     # Add folder filter (all/inbox/unread)
     if folder == 'unread':
@@ -189,16 +193,17 @@ def view_email(email_id):
             return render_template('error.html', 
                                   message='Email not found'), 404
         
-        # Verify email belongs to the requested recipient
-        query = build_email_query(email_address)
-        is_recipient = emails_collection.count_documents({
-            '_id': ObjectId(email_id),
-            "$or": query["$or"]
-        }) > 0
-        
-        if not is_recipient:
-            return render_template('error.html',
-                                  message='Access denied'), 403
+        # Verify access: admins can view any email, users can only view their own
+        if not is_admin():
+            query = build_email_query(email_address)
+            is_recipient = emails_collection.count_documents({
+                '_id': ObjectId(email_id),
+                "$or": query["$or"]
+            }) > 0
+            
+            if not is_recipient:
+                return render_template('error.html',
+                                      message='Access denied'), 403
         
         # Mark as read
         emails_collection.update_one(
