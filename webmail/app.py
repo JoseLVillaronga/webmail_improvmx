@@ -685,7 +685,7 @@ def send_email():
     try:
         # Create message
         logger.info("Creating email message...")
-        msg = MIMEMultipart('alternative')
+        msg = MIMEMultipart('mixed')
         msg['Subject'] = subject
         msg['From'] = current_user.email
         msg['To'] = to
@@ -696,6 +696,39 @@ def send_email():
         # Attach HTML message
         html_part = MIMEText(message, 'html')
         msg.attach(html_part)
+        
+        # Handle file attachments
+        attachments = request.files.getlist('attachments')
+        logger.info(f"Found {len(attachments)} attachment(s)")
+        
+        for attachment in attachments:
+            if attachment and attachment.filename:
+                try:
+                    # Get file info
+                    filename = attachment.filename
+                    content_type = attachment.content_type or 'application/octet-stream'
+                    file_data = attachment.read()
+                    
+                    logger.info(f"Processing attachment: {filename}, size: {len(file_data)}, type: {content_type}")
+                    
+                    # Create attachment part with correct MIME type
+                    main_type, sub_type = content_type.split('/', 1)
+                    part = MIMEBase(main_type, sub_type)
+                    part.set_payload(file_data)
+                    encoders.encode_base64(part)
+                    
+                    # Set Content-Disposition header with filename
+                    part.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename="{filename}"'
+                    )
+                    
+                    msg.attach(part)
+                    logger.info(f"Successfully attached {filename}")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing attachment {attachment.filename}: {str(e)}")
+                    continue
         
         logger.info("Connecting to SMTP server...")
         # Connect to SMTP server with timeout
