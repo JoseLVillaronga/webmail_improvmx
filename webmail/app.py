@@ -357,6 +357,56 @@ def admin_users():
     users = list(users_collection.find())
     return render_template('admin_users.html', users=users)
 
+@app.route('/admin/users/<user_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_user(user_id):
+    """Edit a user"""
+    if not is_admin():
+        flash('Acceso denegado. Solo administradores.', 'error')
+        return redirect(url_for('admin_users'))
+    
+    user_data = users_collection.find_one({'_id': ObjectId(user_id)})
+    if not user_data:
+        flash('Usuario no encontrado', 'error')
+        return redirect(url_for('admin_users'))
+    
+    if str(current_user.id) == user_id:
+        flash('No puedes editar tu propio usuario', 'error')
+        return redirect(url_for('admin_users'))
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        role = request.form.get('role', 'user')
+        password = request.form.get('password', '').strip()
+        
+        # Build update data
+        update_data = {}
+        
+        if name:
+            update_data['name'] = name
+        
+        if role in ['user', 'admin']:
+            update_data['role'] = role
+        
+        if password:
+            if len(password) < 6:
+                flash('La contraseña debe tener al menos 6 caracteres', 'error')
+            else:
+                update_data['password_hash'] = generate_password_hash(password)
+        
+        if update_data:
+            users_collection.update_one(
+                {'_id': ObjectId(user_id)},
+                {'$set': update_data}
+            )
+            flash('Usuario actualizado exitosamente', 'success')
+            return redirect(url_for('admin_users'))
+        else:
+            flash('No se realizaron cambios', 'warning')
+    
+    return render_template('edit_user.html', user=user_data)
+
+
 @app.route('/admin/users/<user_id>/toggle-role', methods=['POST'])
 @login_required
 def toggle_user_role(user_id):
