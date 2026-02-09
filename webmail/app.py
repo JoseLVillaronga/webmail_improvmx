@@ -337,13 +337,26 @@ def view_email(email_id):
             'is_sent': 'sent_at' in email
         }
         
-        # Format inline images for HTML display
-        inline_map = {inline.get('cid'): inline for inline in processed_email['inlines']}
+        # Replace inline images with data URIs in HTML to prevent ERR_UNKNOWN_URL_SCHEME
+        html_content = processed_email['html']
+        if html_content and processed_email['inlines']:
+            import re
+            inline_map = {inline.get('cid'): inline for inline in processed_email['inlines']}
+            
+            # Replace all cid: references with data URIs
+            def replace_cid(match):
+                cid = match.group(1)
+                if cid in inline_map:
+                    inline = inline_map[cid]
+                    return f'data:{inline["type"]};base64,{inline["content"]}'
+                return match.group(0)
+            
+            html_content = re.sub(r'cid:([^"\s\)]+)', replace_cid, html_content, flags=re.IGNORECASE)
+            processed_email['html'] = html_content
         
         return render_template('view_email.html',
                               email_address=email_address,
-                              email=processed_email,
-                              inline_map=inline_map)
+                              email=processed_email)
         
     except Exception as e:
         logger.error(f"Error viewing email: {str(e)}")
@@ -700,6 +713,248 @@ def save_draft():
     
     flash('Borrador guardado exitosamente', 'success')
     return redirect(url_for('index', folder='drafts'))
+
+
+@app.route('/delete-email/<email_id>', methods=['POST'])
+@login_required
+def delete_email(email_id):
+    """Delete an email from inbox, sent, or drafts"""
+    try:
+        folder = request.args.get('folder', 'inbox')
+        logger.info(f"=== DELETE EMAIL START ===")
+        logger.info(f"Deleting email {email_id} from folder {folder}")
+        
+        # Try to delete from different collections
+        result = (emails_collection.delete_one({'_id': ObjectId(email_id)}) or
+                 sent_emails_collection.delete_one({'_id': ObjectId(email_id)}) or
+                 draft_emails_collection.delete_one({'_id': ObjectId(email_id)}))
+        
+        logger.info(f"Delete result: deleted_count={result.deleted_count}")
+        
+        if result.deleted_count > 0:
+            flash('Correo eliminado exitosamente', 'success')
+        else:
+            flash('Correo no encontrado', 'error')
+        
+        return redirect(url_for('index', folder=folder))
+        
+    except Exception as e:
+        logger.error(f"Error deleting email: {str(e)}", exc_info=True)
+        flash(f'Error al eliminar correo: {str(e)}', 'error')
+        folder = request.args.get('folder', 'inbox')
+        return redirect(url_for('index', folder=folder))
+
+
+@app.route('/reply/<email_id>')
+@login_required
+def reply_email(email_id):
+    """Reply to an email"""
+    try:
+        folder = request.args.get('folder', 'inbox')
+        logger.info(f"=== REPLY START ====")
+        logger.info(f"Reply to email {email_id} from folder {folder}")
+        logger.info(f"Authenticated user: {current_user.email}")
+        
+        # Try to get email from inbox
+        logger.info(f"Searching for email {email_id} in emails_collection...")
+        email = emails_collection.find_one({'_id': ObjectId(email_id)})
+        logger.info(f"Found in emails_collection: {email is not None}")
+        
+        # If not in inbox, try sent
+        if not email:
+            logger.info(f"Searching for email {email_id} in sent_emails_collection...")
+            email = sent_emails_collection.find_one({'_id': ObjectId(email_id)})
+            logger.info(f"Found in sent_emails_collection: {email is not None}")
+        
+        # If not in sent, try drafts
+        if not email:
+            logger.info(f"Searching for email {email_id} in draft_emails_collection...")
+            email = draft_emails_collection.find_one({'_id': ObjectId(email_id)})
+            logger.info(f"Found in draft_emails_collection: {email is not None}")
+        
+        if not email:
+            logger.error(f"Email {email_id} not found in any collection")
+            flash('Correo no encontrado', 'error')
+            return redirect(url_for('index', folder=folder))
+        
+        logger.info(f"Email found successfully. Preparing reply...")
+        
+        # Prepare reply data
+        original_subject = email.get('subject', '')
+        reply_subject = f"Re: {original_subject}" if not original_subject.lower().startswith('re:') else original_subject
+        
+        # Get sender email
+        if isinstance(email.get('from'), dict):
+            from_email = email.get('from', {}).get('email', '')
+            from_name = email.get('from', {}).get('name', '')
+        else:
+            from_email = email.get('from', '')
+            from_name = ''
+        
+        # Create quoted message
+        original_text = email.get('text', '')
+        original_html = email.get('html', email.get('message', ''))
+        
+        # Get date as datetime or use current time
+        email_date = email.get('received_at', email.get('sent_at', email.get('updated_at', datetime.utcnow())))
+        if isinstance(email_date, datetime):
+            date_str = email_date.strftime('%d/%m/%Y %H:%M:%S')
+        else:
+            date_str = str(email_date)
+        
+        quoted_text = f"""
+<br><br>
+--- Original Message ---<br>
+De: {from_name if from_name else from_email}<br>
+Fecha: {date_str}<br>
+Para: {current_user.email}<br>
+<br>
+{original_html if original_html else original_text.replace(chr(10), '<br>')}
+"""
+        
+        return render_template('compose.html',
+                          reply_to=from_email,
+                          reply_subject=reply_subject,
+                          reply_message=quoted_text)
+        
+    except Exception as e:
+        logger.error(f"Error preparing reply: {str(e)}", exc_info=True)
+        folder = request.args.get('folder', 'inbox')
+        flash(f'Error al preparar respuesta: {str(e)}', 'error')
+        return redirect(url_for('index', folder=folder))
+
+
+@app.route('/reply-all/<email_id>')
+@login_required
+def reply_all_email(email_id):
+    """Reply to all recipients of an email"""
+    try:
+        folder = request.args.get('folder', 'inbox')
+        
+        # Get email from inbox or sent
+        email = (emails_collection.find_one({'_id': ObjectId(email_id)}) or
+                 sent_emails_collection.find_one({'_id': ObjectId(email_id)}))
+        
+        if not email:
+            flash('Correo no encontrado', 'error')
+            return redirect(url_for('index', folder=folder))
+        
+        # Prepare reply data
+        original_subject = email.get('subject', '')
+        reply_subject = f"Re: {original_subject}" if not original_subject.lower().startswith('re:') else original_subject
+        
+        # Get sender email
+        if isinstance(email.get('from'), dict):
+            from_email = email.get('from', {}).get('email', '')
+            from_name = email.get('from', {}).get('name', '')
+        else:
+            from_email = email.get('from', '')
+            from_name = ''
+        
+        # Get all recipients (to, cc)
+        recipients = []
+        to_list = email.get('to', [])
+        if to_list:
+            for recipient in to_list:
+                if isinstance(recipient, dict):
+                    rec_email = recipient.get('email', '')
+                else:
+                    rec_email = str(recipient)
+                if rec_email and rec_email != current_user.email:
+                    recipients.append(rec_email)
+        
+        # Create quoted message
+        original_text = email.get('text', '')
+        original_html = email.get('html', email.get('message', ''))
+        
+        # Get date as datetime or use current time
+        email_date = email.get('received_at', email.get('sent_at', email.get('updated_at', datetime.utcnow())))
+        if isinstance(email_date, datetime):
+            date_str = email_date.strftime('%d/%m/%Y %H:%M:%S')
+        else:
+            date_str = str(email_date)
+        
+        quoted_text = f"""
+<br><br>
+--- Original Message ---<br>
+De: {from_name if from_name else from_email}<br>
+Fecha: {date_str}<br>
+Para: {', '.join(recipients) if recipients else current_user.email}<br>
+<br>
+{original_html if original_html else original_text.replace(chr(10), '<br>')}
+"""
+        
+        return render_template('compose.html',
+                          reply_to=from_email,
+                          reply_cc=', '.join(recipients),
+                          reply_subject=reply_subject,
+                          reply_message=quoted_text)
+        
+    except Exception as e:
+        logger.error(f"Error preparing reply all: {str(e)}", exc_info=True)
+        folder = request.args.get('folder', 'inbox')
+        flash(f'Error al preparar responder a todos: {str(e)}', 'error')
+        return redirect(url_for('index', folder=folder))
+
+
+@app.route('/forward/<email_id>')
+@login_required
+def forward_email(email_id):
+    """Forward an email to another recipient"""
+    try:
+        folder = request.args.get('folder', 'inbox')
+        
+        # Get email from inbox or sent
+        email = (emails_collection.find_one({'_id': ObjectId(email_id)}) or
+                 sent_emails_collection.find_one({'_id': ObjectId(email_id)}))
+        
+        if not email:
+            flash('Correo no encontrado', 'error')
+            return redirect(url_for('index', folder=folder))
+        
+        # Prepare forward data
+        original_subject = email.get('subject', '')
+        forward_subject = f"Fwd: {original_subject}" if not original_subject.lower().startswith('fwd:') else original_subject
+        
+        # Get original sender
+        if isinstance(email.get('from'), dict):
+            from_email = email.get('from', {}).get('email', '')
+            from_name = email.get('from', {}).get('name', '')
+        else:
+            from_email = email.get('from', '')
+            from_name = ''
+        
+        # Create forwarded message
+        original_text = email.get('text', '')
+        original_html = email.get('html', email.get('message', ''))
+        
+        # Get date as datetime or use current time
+        email_date = email.get('received_at', email.get('sent_at', email.get('updated_at', datetime.utcnow())))
+        if isinstance(email_date, datetime):
+            date_str = email_date.strftime('%d/%m/%Y %H:%M:%S')
+        else:
+            date_str = str(email_date)
+        
+        forwarded_text = f"""
+<br><br>
+---------- Forwarded message ---------<br>
+De: {from_name if from_name else from_email}<br>
+Fecha: {date_str}<br>
+Asunto: {original_subject}<br>
+Para: {', '.join([r.get('email', '') if isinstance(r, dict) else str(r) for r in email.get('to', [])])}<br>
+<br>
+{original_html if original_html else original_text.replace(chr(10), '<br>')}
+"""
+        
+        return render_template('compose.html',
+                          forward_subject=forward_subject,
+                          forward_message=forwarded_text)
+        
+    except Exception as e:
+        logger.error(f"Error preparing forward: {str(e)}", exc_info=True)
+        folder = request.args.get('folder', 'inbox')
+        flash(f'Error al preparar reenvío: {str(e)}', 'error')
+        return redirect(url_for('index', folder=folder))
 
 
 @app.route('/health')

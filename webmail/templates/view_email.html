@@ -157,18 +157,20 @@
             
             <!-- Action Buttons -->
             <div class="mt-4 d-flex gap-2 flex-wrap">
-                <button class="btn btn-outline-primary">
+                <a href="{{ url_for('reply_email', email_id=email.id, folder=request.args.get('folder', 'inbox')) }}" class="btn btn-outline-primary">
                     <i class="bi bi-reply"></i> Responder
-                </button>
-                <button class="btn btn-outline-primary">
+                </a>
+                <a href="{{ url_for('reply_all_email', email_id=email.id, folder=request.args.get('folder', 'inbox')) }}" class="btn btn-outline-primary">
                     <i class="bi bi-reply-all"></i> Responder a todos
-                </button>
-                <button class="btn btn-outline-primary">
+                </a>
+                <a href="{{ url_for('forward_email', email_id=email.id, folder=request.args.get('folder', 'inbox')) }}" class="btn btn-outline-primary">
                     <i class="bi bi-forward"></i> Reenviar
-                </button>
-                <button class="btn btn-outline-danger">
-                    <i class="bi bi-trash"></i> Eliminar
-                </button>
+                </a>
+                <form method="POST" action="{{ url_for('delete_email', email_id=email.id, folder=request.args.get('folder', 'inbox')) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('¿Estás seguro de eliminar este correo?');">
+                        <i class="bi bi-trash"></i> Eliminar
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -176,26 +178,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-    // Process inline images in HTML content
-    document.addEventListener('DOMContentLoaded', function() {
-        const emailContent = document.querySelector('.email-content');
-        if (emailContent) {
-            // Convert inline_map to JSON for JavaScript access
-            const inlineMap = {{ inline_map|tojson|safe }};
-            
-            // Replace cid: references with actual data URLs
-            const images = emailContent.querySelectorAll('img[src^="cid:"]');
-            images.forEach(img => {
-                const cid = img.getAttribute('src').replace('cid:', '');
-                
-                if (inlineMap[cid]) {
-                    const inline = inlineMap[cid];
-                    const dataUrl = `data:${inline.type};base64,${inline.content}`;
-                    img.setAttribute('src', dataUrl);
-                }
-            });
-        }
-    });
-</script>
+<!-- Inline images processed on server - no JavaScript needed -->
 {% endblock %}

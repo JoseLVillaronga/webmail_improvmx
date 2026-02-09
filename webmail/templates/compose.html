@@ -51,6 +51,7 @@
                                                id="to" 
                                                name="to" 
                                                placeholder="destinatario@ejemplo.com"
+                                               value="{{ reply_to or '' }}"
                                                required>
                                         <small class="text-muted">Para múltiples destinatarios, separa con comas</small>
                                     </div>
@@ -61,7 +62,8 @@
                                                class="form-control" 
                                                id="cc" 
                                                name="cc" 
-                                               placeholder="cc@ejemplo.com">
+                                               placeholder="cc@ejemplo.com"
+                                               value="{{ reply_cc or '' }}">
                                     </div>
                                     
                                     <div class="col-md-6">
@@ -80,6 +82,7 @@
                                                id="subject" 
                                                name="subject" 
                                                placeholder="Asunto del correo"
+                                               value="{{ reply_subject or forward_subject or '' }}"
                                                required>
                                     </div>
                                     
@@ -149,7 +152,7 @@
                                              contenteditable="true" 
                                              class="form-control message-editor"
                                              style="min-height: 400px;"
-                                             required></div>
+                                             required>{{ reply_message or forward_message or ''|safe }}</div>
                                         <textarea id="message" name="message" style="display:none;"></textarea>
                                         <small class="text-muted">Escribe tu mensaje aquí. Usa la barra de herramientas para dar formato.</small>
                                     </div>
