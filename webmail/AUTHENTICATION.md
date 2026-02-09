@@ -104,6 +104,30 @@ Cierra la sesión del usuario.
 **Respuesta:**
 - Redirect a `/login`
 
+#### `GET /change-password` y `POST /change-password`
+Permite a los usuarios cambiar su propia contraseña.
+
+**Método GET:**
+Muestra el formulario para cambiar contraseña
+
+**Método POST:**
+Procesa el cambio de contraseña
+
+**Parámetros:**
+- `current_password`: Contraseña actual
+- `new_password`: Nueva contraseña (mínimo 6 caracteres)
+- `confirm_password`: Confirmación de la nueva contraseña
+
+**Validaciones:**
+- Todos los campos son requeridos
+- La nueva contraseña debe tener al menos 6 caracteres
+- La nueva contraseña y la confirmación deben coincidir
+- La contraseña actual debe ser correcta
+
+**Respuesta:**
+- Redirect a `/` con mensaje de éxito si el cambio es exitoso
+- Mensaje de error si falla la validación o la contraseña actual es incorrecta
+
 ### Administración
 
 #### `GET /admin/users`

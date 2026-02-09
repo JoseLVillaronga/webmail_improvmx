@@ -272,6 +272,40 @@ def logout():
     flash('Has cerrado sesión correctamente', 'success')
     return redirect(url_for('login'))
 
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Change user's own password"""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Validation
+        if not current_password or not new_password or not confirm_password:
+            flash('Todos los campos son requeridos', 'error')
+        elif len(new_password) < 6:
+            flash('La nueva contraseña debe tener al menos 6 caracteres', 'error')
+        elif new_password != confirm_password:
+            flash('La nueva contraseña y la confirmación no coinciden', 'error')
+        else:
+            # Verify current password
+            user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+            
+            if not check_password_hash(user_data['password_hash'], current_password):
+                flash('La contraseña actual es incorrecta', 'error')
+            else:
+                # Update password
+                new_password_hash = generate_password_hash(new_password)
+                users_collection.update_one(
+                    {'_id': ObjectId(current_user.id)},
+                    {'$set': {'password_hash': new_password_hash}}
+                )
+                flash('Contraseña cambiada exitosamente', 'success')
+                return redirect(url_for('index'))
+    
+    return render_template('change_password.html')
+
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 def admin_users():
