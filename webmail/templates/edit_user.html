@@ -67,10 +67,41 @@
                             <div class="col-12 mt-4">
                                 <hr>
                                 <h6 class="mb-3">
-                                    <i class="bi bi-key"></i> Cambiar Contraseña
+                                    <i class="bi bi-send"></i> Configuración SMTP para Envío de Correos
                                 </h6>
                                 <small class="text-muted d-block mb-3">
-                                    Deja este campo vacío si no deseas cambiar la contraseña
+                                    Credenciales SMTP para que el usuario pueda enviar correos. Servidor y puerto se configuran en las variables de entorno.
+                                </small>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="smtp_username" class="form-label">Usuario SMTP</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="smtp_username" 
+                                       name="smtp_username" 
+                                       value="{{ user.get('smtp_username', '') }}"
+                                       placeholder="usuario@dominio.com (opcional)">
+                                <small class="text-muted">Nombre de usuario para autenticación SMTP</small>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="smtp_password" class="form-label">Contraseña SMTP</label>
+                                <input type="password" 
+                                       class="form-control" 
+                                       id="smtp_password" 
+                                       name="smtp_password" 
+                                       placeholder="Deja vacío para mantener actual (opcional)">
+                                <small class="text-muted">Deja vacío para no cambiar la contraseña SMTP</small>
+                            </div>
+                            
+                            <div class="col-12 mt-4">
+                                <hr>
+                                <h6 class="mb-3">
+                                    <i class="bi bi-key"></i> Cambiar Contraseña de Usuario
+                                </h6>
+                                <small class="text-muted d-block mb-3">
+                                    Deja este campo vacío si no deseas cambiar la contraseña de usuario
                                 </small>
                             </div>
                             

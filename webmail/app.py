@@ -342,6 +342,8 @@ def admin_users():
             name = request.form.get('name', '').strip()
             role = request.form.get('role', 'user')
             aliases_str = request.form.get('aliases', '').strip()
+            smtp_username = request.form.get('smtp_username', '').strip()
+            smtp_password = request.form.get('smtp_password', '').strip()
             
             # Parse aliases (comma or newline separated)
             aliases = []
@@ -359,6 +361,8 @@ def admin_users():
                     'name': name,
                     'role': role,
                     'aliases': aliases,
+                    'smtp_username': smtp_username,
+                    'smtp_password': smtp_password,
                     'created_at': datetime.utcnow()
                 }
                 users_collection.insert_one(new_user)
@@ -398,6 +402,8 @@ def edit_user(user_id):
         role = request.form.get('role', 'user')
         password = request.form.get('password', '').strip()
         aliases_str = request.form.get('aliases', '').strip()
+        smtp_username = request.form.get('smtp_username', '').strip()
+        smtp_password = request.form.get('smtp_password', '').strip()
         
         # Parse aliases (comma or newline separated)
         aliases = []
@@ -415,6 +421,13 @@ def edit_user(user_id):
         
         if aliases is not None:  # Always update aliases (can be empty list)
             update_data['aliases'] = aliases
+        
+        # Update SMTP credentials only if provided
+        if smtp_username is not None:
+            update_data['smtp_username'] = smtp_username
+        
+        if smtp_password is not None:
+            update_data['smtp_password'] = smtp_password
         
         if password:
             if len(password) < 6:
