@@ -21,7 +21,6 @@
             <!-- Search Box -->
             <div class="search-box">
                 <form method="GET" action="" class="d-flex gap-2">
-                    <input type="hidden" name="email" value="{{ email_address }}">
                     <input type="hidden" name="folder" value="{{ folder }}">
                     
                     <div class="flex-grow-1">
@@ -43,7 +42,7 @@
                     </button>
                     
                     {% if search_query %}
-                    <a href="?email={{ email_address }}&folder={{ folder }}" class="btn btn-outline-secondary">
+                    <a href="?folder={{ folder }}" class="btn btn-outline-secondary">
                         <i class="bi bi-x-circle"></i> Limpiar
                     </a>
                     {% endif %}
@@ -54,7 +53,7 @@
             {% if emails %}
             <div class="list-group">
                 {% for email in emails %}
-                <a href="/view/{{ email.id }}?email={{ email_address }}" 
+                <a href="/view/{{ email.id }}" 
                    class="list-group-item list-group-item-action email-list-item {{ 'unread' if email.unread else '' }}">
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="flex-grow-1">
@@ -113,7 +112,7 @@
                     {% if page > 1 %}
                     <li class="page-item">
                         <a class="page-link" 
-                           href="?email={{ email_address }}&folder={{ folder }}&search={{ search_query }}&page={{ page - 1 }}">
+                           href="?folder={{ folder }}&search={{ search_query }}&page={{ page - 1 }}">
                             <i class="bi bi-chevron-left"></i> Anterior
                         </a>
                     </li>
@@ -127,7 +126,7 @@
                         {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
                         <li class="page-item">
                             <a class="page-link" 
-                               href="?email={{ email_address }}&folder={{ folder }}&search={{ search_query }}&page={{ p }}">
+                               href="?folder={{ folder }}&search={{ search_query }}&page={{ p }}">
                                 {{ p }}
                             </a>
                         </li>
@@ -141,7 +140,7 @@
                     {% if page < total_pages %}
                     <li class="page-item">
                         <a class="page-link" 
-                           href="?email={{ email_address }}&folder={{ folder }}&search={{ search_query }}&page={{ page + 1 }}">
+                           href="?folder={{ folder }}&search={{ search_query }}&page={{ page + 1 }}">
                             Siguiente <i class="bi bi-chevron-right"></i>
                         </a>
                     </li>
@@ -167,7 +166,7 @@
                     {% endif %}
                 </p>
                 {% if search_query %}
-                <a href="?email={{ email_address }}&folder={{ folder }}" class="btn btn-primary">
+                <a href="?folder={{ folder }}" class="btn btn-primary">
                     <i class="bi bi-arrow-counterclockwise"></i> Limpiar búsqueda
                 </a>
                 {% endif %}

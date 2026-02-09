@@ -301,7 +301,7 @@
                 
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if current_folder == 'inbox' else '' }}" 
-                       href="/?email={{ email_address }}&folder=inbox">
+                       href="/?folder=inbox">
                         <i class="bi bi-inbox"></i>
                         Bandeja de entrada
                     </a>
@@ -309,7 +309,7 @@
                 
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if current_folder == 'unread' else '' }}" 
-                       href="/?email={{ email_address }}&folder=unread">
+                       href="/?folder=unread">
                         <i class="bi bi-envelope"></i>
                         No leídos
                     </a>
@@ -317,11 +317,24 @@
                 
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if current_folder == 'all' else '' }}" 
-                       href="/?email={{ email_address }}&folder=all">
+                       href="/?folder=all">
                         <i class="bi bi-envelope-open"></i>
                         Todos los correos
                     </a>
                 </li>
+                
+                {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                <li class="nav-item mt-3">
+                    <div class="text-uppercase small text-muted mb-2 ps-3">Administración</div>
+                </li>
+                
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin_users') }}">
+                        <i class="bi bi-people"></i>
+                        Gestionar Usuarios
+                    </a>
+                </li>
+                {% endif %}
                 
                 <li class="nav-item mt-3">
                     <div class="text-uppercase small text-muted mb-2 ps-3">Cuenta</div>
@@ -330,7 +343,17 @@
                 <li class="nav-item">
                     <a class="nav-link" href="#">
                         <i class="bi bi-person"></i>
-                        <small>{{ email_address }}</small>
+                        <small>{{ current_user.email }}</small>
+                        {% if current_user.role == 'admin' %}
+                        <span class="badge bg-danger ms-1">Admin</span>
+                        {% endif %}
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a class="nav-link text-danger" href="{{ url_for('logout') }}">
+                        <i class="bi bi-box-arrow-right"></i>
+                        Cerrar Sesión
                     </a>
                 </li>
             </ul>
