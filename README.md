@@ -421,6 +421,140 @@ chmod +x start.sh
 gunicorn -c gunicorn.conf.py app:app >> server.log 2>&1
 ```
 
+## 🌐 Problema de Conexión a SMTP de ImprovMX (Timeout al Enviar Correos)
+
+**Síntoma:** Al intentar enviar correos a través de smtp.improvmx.com, se experimentan tiempos de espera excesivos (timeouts) que pueden durar varios minutos antes de que la conexión falle o tenga éxito.
+
+**Causa:** El problema ocurre porque el sistema intenta conectarse primero usando IPv6 antes de IPv4. Si la red o el servidor no tiene soporte IPv6 completo o si hay problemas de routing IPv6, el intento de conexión IPv6 falla después de un largo tiempo de espera antes de intentar con IPv4.
+
+**Diagnóstico:**
+
+```bash
+# Verificar la resolución DNS de smtp.improvmx.com
+nslookup smtp.improvmx.com
+# o
+dig smtp.improvmx.com
+
+# Verificar cuál protocolo se está intentando usar
+ping smtp.improvmx.com
+ping6 smtp.improvmx.com
+
+# Probar conexión al puerto SMTP (587) con timeout
+timeout 5 nc -zv smtp.improvmx.com 587
+```
+
+**Solución - Forzar Conexión IPv4 mediante /etc/hosts:**
+
+1. **Obtener las direcciones IPv4 de smtp.improvmx.com:**
+```bash
+# Obtener solo direcciones IPv4
+dig smtp.improvmx.com +short A
+
+# Ejemplo de salida (puede variar):
+# 54.230.200.20
+# 54.230.200.50
+```
+
+2. **Editar el archivo /etc/hosts:**
+```bash
+sudo nano /etc/hosts
+```
+
+3. **Agregar las direcciones IPv4 de smtp.improvmx.com:**
+```bash
+# Agregar al final del archivo /etc/hosts
+54.230.200.20 smtp.improvmx.com
+54.230.200.50 smtp.improvmx.com
+```
+
+4. **Guardar el archivo y probar la conexión:**
+```bash
+# Verificar que la resolución usa /etc/hosts
+ping smtp.improvmx.com
+
+# Probar conexión SMTP rápida
+timeout 5 nc -zv smtp.improvmx.com 587
+```
+
+**Verificación de que la solución funcionó:**
+
+```bash
+# La resolución DNS ahora debería mostrar solo las IPs de /etc/hosts
+nslookup smtp.improvmx.com
+
+# El ping debería responder inmediatamente (sin timeout)
+ping -c 2 smtp.improvmx.com
+
+# La conexión al puerto SMTP debería ser rápida
+time nc -zv smtp.improvmx.com 587
+```
+
+**Mantenimiento de la solución:**
+
+Es importante mantener actualizadas las direcciones IPv4 en /etc/hosts ya que ImprovMX podría cambiarlas en el futuro. Se recomienda:
+
+1. **Crear un script de verificación:**
+```bash
+#!/bin/bash
+# Script: check_smtp_ips.sh
+
+echo "Direcciones IPv4 actuales de smtp.improvmx.com:"
+dig smtp.improvmx.com +short A
+
+echo ""
+echo "Direcciones configuradas en /etc/hosts:"
+grep smtp.improvmx.com /etc/hosts
+```
+
+2. **Verificar periódicamente si las IPs han cambiado:**
+```bash
+# Ejecutar el script
+chmod +x check_smtp_ips.sh
+./check_smtp_ips.sh
+```
+
+3. **Actualización automatizada (opcional):**
+```bash
+#!/bin/bash
+# Script: update_smtp_hosts.sh
+
+# Obtener nuevas IPs
+NEW_IPS=$(dig smtp.improvmx.com +short A | grep -E '^[0-9]')
+
+# Eliminar entradas antiguas
+sudo sed -i '/smtp.improvmx.com/d' /etc/hosts
+
+# Agregar nuevas IPs
+for ip in $NEW_IPS; do
+    echo "$ip smtp.improvmx.com" | sudo tee -a /etc/hosts
+done
+
+echo "/etc/hosts actualizado con las IPs más recientes de smtp.improvmx.com"
+```
+
+**Solución alternativa - Deshabilitar IPv6:**
+
+Si prefieres una solución más permanente y no necesitas IPv6 en tu sistema:
+
+```bash
+# Verificar si IPv6 está habilitado
+cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+# 0 = habilitado, 1 = deshabilitado
+
+# Deshabilitar IPv6 temporalmente
+sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
+sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
+
+# Para hacer el cambio permanente, editar /etc/sysctl.conf
+echo "net.ipv6.conf.all.disable_ipv6=1" | sudo tee -a /etc/sysctl.conf
+echo "net.ipv6.conf.default.disable_ipv6=1" | sudo tee -a /etc/sysctl.conf
+
+# Aplicar cambios
+sudo sysctl -p
+```
+
+**⚠️ Importante:** Deshabilitar IPv6 puede afectar otros servicios que dependan de IPv6. La solución con /etc/hosts es más segura y solo afecta la conexión a smtp.improvmx.com.
+
 ## 📦 Despliegue en Producción
 
 ### Instalación Automática del Servicio Systemd
