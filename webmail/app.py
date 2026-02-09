@@ -14,6 +14,8 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Configure logging
@@ -698,11 +700,11 @@ def send_email():
         logger.info("Connecting to SMTP server...")
         # Connect to SMTP server with timeout
         if smtp_sec_type.upper() == 'TLS':
-            server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=300)
             logger.info("Starting TLS...")
             server.starttls()
         else:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=300)
         
         logger.info("Logging in to SMTP server...")
         server.login(smtp_username, smtp_password)
