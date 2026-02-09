@@ -104,10 +104,10 @@
                                             </div>
                                             
                                             <div class="btn-group btn-group-sm ms-2" role="group">
-                                                <button type="button" class="btn btn-outline-secondary" onclick="formatBlock('insertUnorderedList')" title="Lista sin orden">
+                                                <button type="button" class="btn btn-outline-secondary" onclick="insertList('unordered')" title="Lista sin orden">
                                                     <i class="bi bi-list-ul"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-outline-secondary" onclick="formatBlock('insertOrderedList')" title="Lista ordenada">
+                                                <button type="button" class="btn btn-outline-secondary" onclick="insertList('ordered')" title="Lista ordenada">
                                                     <i class="bi bi-list-ol"></i>
                                                 </button>
                                             </div>
@@ -279,8 +279,13 @@ function formatText(command) {
     execCommand(command);
 }
 
-function formatBlock(command) {
-    execCommand('formatBlock', command);
+function insertList(type) {
+    // Insert list at cursor position
+    if (type === 'unordered') {
+        execCommand('insertUnorderedList');
+    } else if (type === 'ordered') {
+        execCommand('insertOrderedList');
+    }
 }
 
 // Change font size
