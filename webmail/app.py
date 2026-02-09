@@ -76,18 +76,24 @@ def is_admin():
     return current_user.is_authenticated and current_user.role == 'admin'
 
 
-def build_email_query(email_address):
+def build_email_query(email_address, aliases=None):
     """Build MongoDB query to filter emails by recipient"""
     if not email_address:
         return {}
     
-    # Query for emails where recipient matches either to[].email or envelope.recipient
-    query = {
-        "$or": [
-            {"to.email": email_address},
-            {"envelope.recipient": email_address}
-        ]
-    }
+    # Build list of emails to search (main email + aliases)
+    email_list = [email_address]
+    if aliases:
+        email_list.extend(aliases)
+    
+    # Create query for each email address
+    email_queries = []
+    for email in email_list:
+        email_queries.append({"to.email": email})
+        email_queries.append({"envelope.recipient": email})
+    
+    # Query for emails where recipient matches any of the emails
+    query = {"$or": email_queries}
     return query
 
 
@@ -110,7 +116,10 @@ def index():
     if is_admin() and folder == 'all':
         query = {}
     else:
-        query = build_email_query(email_address)
+        # Get user data including aliases
+        user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+        aliases = user_data.get('aliases', []) if user_data else []
+        query = build_email_query(email_address, aliases)
     
     # Add folder filter (all/inbox/unread)
     if folder == 'unread':
@@ -197,7 +206,10 @@ def view_email(email_id):
         
         # Verify access: admins can view any email, users can only view their own
         if not is_admin():
-            query = build_email_query(email_address)
+            # Get user data including aliases
+            user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+            aliases = user_data.get('aliases', []) if user_data else []
+            query = build_email_query(email_address, aliases)
             is_recipient = emails_collection.count_documents({
                 '_id': ObjectId(email_id),
                 "$or": query["$or"]
@@ -329,6 +341,12 @@ def admin_users():
             password = request.form.get('password', '')
             name = request.form.get('name', '').strip()
             role = request.form.get('role', 'user')
+            aliases_str = request.form.get('aliases', '').strip()
+            
+            # Parse aliases (comma or newline separated)
+            aliases = []
+            if aliases_str:
+                aliases = [alias.strip() for alias in aliases_str.replace('\n', ',').split(',') if alias.strip()]
             
             if not email or not password:
                 flash('Email y contraseña son requeridos', 'error')
@@ -340,6 +358,7 @@ def admin_users():
                     'password_hash': generate_password_hash(password),
                     'name': name,
                     'role': role,
+                    'aliases': aliases,
                     'created_at': datetime.utcnow()
                 }
                 users_collection.insert_one(new_user)
@@ -378,6 +397,12 @@ def edit_user(user_id):
         name = request.form.get('name', '').strip()
         role = request.form.get('role', 'user')
         password = request.form.get('password', '').strip()
+        aliases_str = request.form.get('aliases', '').strip()
+        
+        # Parse aliases (comma or newline separated)
+        aliases = []
+        if aliases_str:
+            aliases = [alias.strip() for alias in aliases_str.replace('\n', ',').split(',') if alias.strip()]
         
         # Build update data
         update_data = {}
@@ -387,6 +412,9 @@ def edit_user(user_id):
         
         if role in ['user', 'admin']:
             update_data['role'] = role
+        
+        if aliases is not None:  # Always update aliases (can be empty list)
+            update_data['aliases'] = aliases
         
         if password:
             if len(password) < 6:
