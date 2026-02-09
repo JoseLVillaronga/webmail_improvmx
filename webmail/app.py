@@ -10,6 +10,9 @@ from bson.objectid import ObjectId
 import os
 from datetime import datetime
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Configure logging
@@ -36,6 +39,8 @@ client = MongoClient(MONGO_URI)
 db = client[MONGO_DB]
 emails_collection = db['emails']
 users_collection = db['users']
+sent_emails_collection = db['sent_emails']
+draft_emails_collection = db['draft_emails']
 
 # User class for Flask-Login
 class User(UserMixin):
@@ -104,13 +109,89 @@ def index():
     email_address = get_user_email()
     
     # Pagination parameters
-    page = int(request.args.get('page', 1))
+    page = int(request.args.get('page',1))
     per_page = int(request.args.get('per_page', 20))
     
     # Search parameters
     search_query = request.args.get('search', '').strip()
     folder = request.args.get('folder', 'inbox')
     
+    # Handle sent and drafts folders
+    if folder == 'sent':
+        query = {'user_id': current_user.id}
+        total_count = sent_emails_collection.count_documents(query)
+        emails = list(sent_emails_collection
+                      .find(query)
+                      .sort('sent_at', -1)
+                      .skip((page - 1) * per_page)
+                      .limit(per_page))
+        
+        # Process sent emails for display
+        processed_emails = []
+        for email in emails:
+            processed_email = {
+                'id': str(email['_id']),
+                'subject': email.get('subject', '(No subject)'),
+                'from_name': current_user.email,
+                'from_email': current_user.email,
+                'to_email': email.get('to', ''),
+                'date': email.get('sent_at', datetime.utcnow()),
+                'has_attachments': False,
+                'unread': False,
+                'snippet': email.get('message', '')[:150] + '...' if email.get('message') else ''
+            }
+            processed_emails.append(processed_email)
+        
+        total_pages = (total_count + per_page - 1) // per_page
+        
+        return render_template('index.html',
+                              email_address=email_address,
+                              emails=processed_emails,
+                              page=page,
+                              per_page=per_page,
+                              total_pages=total_pages,
+                              total_count=total_count,
+                              search_query=search_query,
+                              folder=folder)
+    
+    elif folder == 'drafts':
+        query = {'user_id': current_user.id}
+        total_count = draft_emails_collection.count_documents(query)
+        emails = list(draft_emails_collection
+                      .find(query)
+                      .sort('updated_at', -1)
+                      .skip((page - 1) * per_page)
+                      .limit(per_page))
+        
+        # Process draft emails for display
+        processed_emails = []
+        for email in emails:
+            processed_email = {
+                'id': str(email['_id']),
+                'subject': email.get('subject', '(Borrador sin asunto)'),
+                'from_name': current_user.email,
+                'from_email': current_user.email,
+                'to_email': email.get('to', ''),
+                'date': email.get('updated_at', datetime.utcnow()),
+                'has_attachments': False,
+                'unread': False,
+                'snippet': email.get('message', '')[:150] + '...' if email.get('message') else ''
+            }
+            processed_emails.append(processed_email)
+        
+        total_pages = (total_count + per_page - 1) // per_page
+        
+        return render_template('index.html',
+                              email_address=email_address,
+                              emails=processed_emails,
+                              page=page,
+                              per_page=per_page,
+                              total_pages=total_pages,
+                              total_count=total_count,
+                              search_query=search_query,
+                              folder=folder)
+    
+    # Handle inbox/all/unread folders (existing logic)
     # Build base query
     # Admin users see all emails when folder is 'all'
     if is_admin() and folder == 'all':
@@ -154,10 +235,10 @@ def index():
     # Process emails for display
     processed_emails = []
     for email in emails:
-        # Get actual recipient from the email's 'to' field
+        # Get actual recipient from email's 'to' field
         to_list = email.get('to', [])
         if to_list:
-            # Use first recipient in the 'to' field
+            # Use first recipient in 'to' field
             to_email = to_list[0].get('email', '') if isinstance(to_list[0], dict) else str(to_list[0])
         else:
             # Fallback to envelope recipient if no 'to' field
@@ -197,8 +278,10 @@ def view_email(email_id):
     email_address = get_user_email()
     
     try:
-        # Get email from MongoDB
-        email = emails_collection.find_one({'_id': ObjectId(email_id)})
+        # Try to get email from different collections
+        email = (emails_collection.find_one({'_id': ObjectId(email_id)}) or
+                 sent_emails_collection.find_one({'_id': ObjectId(email_id)}) or
+                 draft_emails_collection.find_one({'_id': ObjectId(email_id)}))
         
         if not email:
             return render_template('error.html', 
@@ -206,41 +289,52 @@ def view_email(email_id):
         
         # Verify access: admins can view any email, users can only view their own
         if not is_admin():
-            # Get user data including aliases
-            user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-            aliases = user_data.get('aliases', []) if user_data else []
-            query = build_email_query(email_address, aliases)
-            is_recipient = emails_collection.count_documents({
-                '_id': ObjectId(email_id),
-                "$or": query["$or"]
-            }) > 0
-            
-            if not is_recipient:
-                return render_template('error.html',
-                                      message='Access denied'), 403
+            # Check if it's a sent or draft email
+            if email in sent_emails_collection.find({'_id': ObjectId(email_id)}) or \
+               email in draft_emails_collection.find({'_id': ObjectId(email_id)}):
+                # Sent and draft emails must belong to current user
+                if email.get('user_id') != current_user.id:
+                    return render_template('error.html',
+                                          message='Access denied'), 403
+            else:
+                # Inbox emails: check if recipient matches user or aliases
+                user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+                aliases = user_data.get('aliases', []) if user_data else []
+                query = build_email_query(email_address, aliases)
+                is_recipient = emails_collection.count_documents({
+                    '_id': ObjectId(email_id),
+                    "$or": query["$or"]
+                }) > 0
+                
+                if not is_recipient:
+                    return render_template('error.html',
+                                          message='Access denied'), 403
         
-        # Mark as read
-        emails_collection.update_one(
-            {'_id': ObjectId(email_id)},
-            {'$set': {'processed': True}}
-        )
+        # Mark as read (only for inbox emails)
+        if 'received_at' in email:
+            emails_collection.update_one(
+                {'_id': ObjectId(email_id)},
+                {'$set': {'processed': True}}
+            )
         
         # Process email for display
         processed_email = {
             'id': str(email['_id']),
             'subject': email.get('subject', '(No subject)'),
-            'from_name': email.get('from', {}).get('name', ''),
-            'from_email': email.get('from', {}).get('email', ''),
+            'from_name': email.get('from', {}).get('name', '') if isinstance(email.get('from'), dict) else email.get('from', ''),
+            'from_email': email.get('from', {}).get('email', '') if isinstance(email.get('from'), dict) else email.get('from', ''),
             'to': email.get('to', []),
             'envelope_recipient': email.get('envelope', {}).get('recipient', ''),
-            'date': email.get('received_at', datetime.utcnow()),
+            'date': email.get('received_at', email.get('sent_at', email.get('updated_at', datetime.utcnow()))),
             'text': email.get('text', ''),
-            'html': email.get('html', ''),
+            'html': email.get('html', email.get('message', '')),
             'headers': email.get('headers', {}),
             'message_id': email.get('message-id', ''),
             'attachments': email.get('attachments', []),
             'inlines': email.get('inlines', []),
-            'verdict': email.get('verdict', {})
+            'verdict': email.get('verdict', {}),
+            'is_draft': 'created_at' in email,
+            'is_sent': 'sent_at' in email
         }
         
         # Format inline images for HTML display
@@ -469,6 +563,144 @@ def toggle_user_role(user_id):
     )
     
     return jsonify({'success': True, 'new_role': new_role})
+
+@app.route('/compose')
+@login_required
+def compose():
+    """Display compose email form"""
+    return render_template('compose.html')
+
+
+@app.route('/send-email', methods=['POST'])
+@login_required
+def send_email():
+    """Send email via SMTP"""
+    logger.info(f"Starting email send process for user {current_user.email}")
+    
+    # Get form data
+    to = request.form.get('to', '').strip()
+    cc = request.form.get('cc', '').strip()
+    bcc = request.form.get('bcc', '').strip()
+    subject = request.form.get('subject', '').strip()
+    message = request.form.get('message', '').strip()
+    
+    logger.info(f"Email data - To: {to}, Subject: {subject}")
+    
+    # Validate required fields
+    if not to or not subject or not message:
+        flash('Por favor completa los campos requeridos', 'error')
+        return redirect(url_for('compose'))
+    
+    # Get user SMTP credentials
+    logger.info("Fetching user SMTP credentials...")
+    user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+    smtp_username = user_data.get('smtp_username') if user_data else None
+    smtp_password = user_data.get('smtp_password') if user_data else None
+    
+    logger.info(f"SMTP credentials found: username={smtp_username}, password={'set' if smtp_password else 'not set'}")
+    
+    if not smtp_username or not smtp_password:
+        flash('No tienes configuradas las credenciales SMTP. Contacta al administrador.', 'error')
+        return redirect(url_for('compose'))
+    
+    # Get SMTP configuration from environment
+    smtp_server = os.getenv('SMTP_SERVER', 'smtp.improvmx.com')
+    smtp_port = int(os.getenv('SMTP_PORT', '587'))
+    smtp_sec_type = os.getenv('SMTP_SEC_TYPE', 'TLS')
+    
+    logger.info(f"SMTP config: {smtp_server}:{smtp_port}, security={smtp_sec_type}")
+    
+    try:
+        # Create message
+        logger.info("Creating email message...")
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = current_user.email
+        msg['To'] = to
+        
+        if cc:
+            msg['Cc'] = cc
+        
+        # Attach HTML message
+        html_part = MIMEText(message, 'html')
+        msg.attach(html_part)
+        
+        logger.info("Connecting to SMTP server...")
+        # Connect to SMTP server with timeout
+        if smtp_sec_type.upper() == 'TLS':
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+            logger.info("Starting TLS...")
+            server.starttls()
+        else:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
+        
+        logger.info("Logging in to SMTP server...")
+        server.login(smtp_username, smtp_password)
+        
+        # Prepare recipients list
+        recipients = [to]
+        if cc:
+            recipients.extend([c.strip() for c in cc.split(',') if c.strip()])
+        if bcc:
+            recipients.extend([b.strip() for b in bcc.split(',') if b.strip()])
+        
+        logger.info(f"Sending email to {len(recipients)} recipients...")
+        # Send email
+        server.sendmail(current_user.email, recipients, msg.as_string())
+        
+        logger.info("Closing SMTP connection...")
+        server.quit()
+        
+        # Save to sent folder
+        sent_email = {
+            'user_id': current_user.id,
+            'from': current_user.email,
+            'to': to,
+            'cc': cc,
+            'bcc': bcc,
+            'subject': subject,
+            'message': message,
+            'sent_at': datetime.utcnow()
+        }
+        sent_emails_collection.insert_one(sent_email)
+        
+        flash('Correo enviado exitosamente', 'success')
+        return redirect(url_for('index', folder='sent'))
+        
+    except Exception as e:
+        logger.error(f"Error sending email: {str(e)}")
+        flash(f'Error al enviar correo: {str(e)}', 'error')
+        return redirect(url_for('compose'))
+
+
+@app.route('/save-draft', methods=['POST'])
+@login_required
+def save_draft():
+    """Save email as draft"""
+    # Get form data
+    to = request.form.get('to', '').strip()
+    cc = request.form.get('cc', '').strip()
+    bcc = request.form.get('bcc', '').strip()
+    subject = request.form.get('subject', '').strip()
+    message = request.form.get('message', '').strip()
+    
+    # Save to drafts folder
+    draft_email = {
+        'user_id': current_user.id,
+        'from': current_user.email,
+        'to': to,
+        'cc': cc,
+        'bcc': bcc,
+        'subject': subject,
+        'message': message,
+        'created_at': datetime.utcnow(),
+        'updated_at': datetime.utcnow()
+    }
+    draft_emails_collection.insert_one(draft_email)
+    
+    flash('Borrador guardado exitosamente', 'success')
+    return redirect(url_for('index', folder='drafts'))
+
 
 @app.route('/health')
 def health():

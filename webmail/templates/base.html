@@ -300,10 +300,37 @@
                 {% set current_folder = request.args.get('folder', 'inbox') %}
                 
                 <li class="nav-item">
+                    <a class="nav-link bg-success text-white" href="{{ url_for('compose') }}">
+                        <i class="bi bi-plus-circle"></i>
+                        Redactar Correo
+                    </a>
+                </li>
+                
+                <li class="nav-item mt-3">
+                    <div class="text-uppercase small text-muted mb-2 ps-3">Carpetas</div>
+                </li>
+                
+                <li class="nav-item">
                     <a class="nav-link {{ 'active' if current_folder == 'inbox' else '' }}" 
                        href="/?folder=inbox">
                         <i class="bi bi-inbox"></i>
                         Bandeja de entrada
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if current_folder == 'sent' else '' }}" 
+                       href="/?folder=sent">
+                        <i class="bi bi-send"></i>
+                        Enviados
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if current_folder == 'drafts' else '' }}" 
+                       href="/?folder=drafts">
+                        <i class="bi bi-file-earmark"></i>
+                        Borradores
                     </a>
                 </li>
                 

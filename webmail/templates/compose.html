@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
+                    <i class="bi bi-pencil-square"></i> Nuevo Correo
+                </h2>
+                <div>
+                    <a href="{{ url_for('index', folder='sent') }}" class="btn btn-outline-primary me-2">
+                        <i class="bi bi-send"></i> Enviados
+                    </a>
+                    <a href="{{ url_for('index', folder='drafts') }}" class="btn btn-outline-secondary me-2">
+                        <i class="bi bi-file-earmark"></i> Borradores
+                    </a>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Compose Email Form -->
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" id="composeTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" id="edit-tab" data-bs-toggle="tab" data-bs-target="#edit" type="button" role="tab">
+                                <i class="bi bi-pencil"></i> Editar
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="preview-tab" data-bs-toggle="tab" data-bs-target="#preview" type="button" role="tab">
+                                <i class="bi bi-eye"></i> Vista Previa
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('send_email') }}" id="emailForm">
+                        <div class="tab-content" id="composeTabsContent">
+                            <!-- Edit Tab -->
+                            <div class="tab-pane fade show active" id="edit" role="tabpanel">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label for="to" class="form-label">Para *</label>
+                                        <input type="email" 
+                                               class="form-control" 
+                                               id="to" 
+                                               name="to" 
+                                               placeholder="destinatario@ejemplo.com"
+                                               required
+                                               multiple>
+                                        <small class="text-muted">Para múltiples destinatarios, separa con comas</small>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="cc" class="form-label">CC</label>
+                                        <input type="email" 
+                                               class="form-control" 
+                                               id="cc" 
+                                               name="cc" 
+                                               placeholder="cc@ejemplo.com"
+                                               multiple>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="bcc" class="form-label">CCO</label>
+                                        <input type="email" 
+                                               class="form-control" 
+                                               id="bcc" 
+                                               name="bcc" 
+                                               placeholder="cco@ejemplo.com"
+                                               multiple>
+                                    </div>
+                                    
+                                    <div class="col-12">
+                                        <label for="subject" class="form-label">Asunto *</label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="subject" 
+                                               name="subject" 
+                                               placeholder="Asunto del correo"
+                                               required>
+                                    </div>
+                                    
+                                    <div class="col-12">
+                                        <label for="message" class="form-label">Mensaje *</label>
+                                        <!-- Simple Rich Text Editor -->
+                                        <div class="mb-2">
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="button" class="btn btn-outline-secondary" onclick="formatText('bold')" title="Negrita">
+                                                    <i class="bi bi-type-bold"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary" onclick="formatText('italic')" title="Cursiva">
+                                                    <i class="bi bi-type-italic"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary" onclick="formatText('underline')" title="Subrayado">
+                                                    <i class="bi bi-type-underline"></i>
+                                                </button>
+                                                <div class="btn-group-vertical">
+                                                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                                        <i class="bi bi-list"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        <li><a class="dropdown-item" href="#" onclick="formatText('insertUnorderedList')">• Lista sin orden</a></li>
+                                                        <li><a class="dropdown-item" href="#" onclick="formatText('insertOrderedList')">1. Lista ordenada</a></li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <textarea class="form-control" 
+                                                  id="message" 
+                                                  name="message" 
+                                                  rows="12"
+                                                  required></textarea>
+                                    </div>
+                                    
+                                    <div class="col-12 mt-4">
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-send"></i> Enviar
+                                            </button>
+                                            <button type="button" class="btn btn-outline-success" onclick="saveDraft()">
+                                                <i class="bi bi-save"></i> Guardar Borrador
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger" onclick="discardDraft()">
+                                                <i class="bi bi-x-circle"></i> Descartar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Preview Tab -->
+                            <div class="tab-pane fade" id="preview" role="tabpanel">
+                                <div class="preview-container">
+                                    <div class="email-preview">
+                                        <div class="preview-header">
+                                            <h6 class="preview-label">De:</h6>
+                                            <p class="preview-value">{{ current_user.email }}</p>
+                                            
+                                            <h6 class="preview-label">Para:</h6>
+                                            <p class="preview-value" id="previewTo">-</p>
+                                            
+                                            {% if request.form.get('cc') %}
+                                            <h6 class="preview-label">CC:</h6>
+                                            <p class="preview-value" id="previewCc">-</p>
+                                            {% endif %}
+                                            
+                                            <h6 class="preview-label">Asunto:</h6>
+                                            <h5 class="preview-value" id="previewSubject">Sin asunto</h5>
+                                        </div>
+                                        <hr>
+                                        <div class="preview-body" id="previewBody">
+                                            <em>El mensaje aparecerá aquí...</em>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.preview-container {
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+}
+
+.email-preview {
+    background-color: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.preview-header {
+    margin-bottom: 1.5rem;
+}
+
+.preview-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+}
+
+.preview-value {
+    color: #212529;
+    margin-bottom: 1rem;
+    word-wrap: break-word;
+}
+
+.preview-body {
+    min-height: 200px;
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.preview-body ul,
+.preview-body ol {
+    padding-left: 1.5rem;
+}
+</style>
+
+<script>
+// Format text in textarea
+function formatText(command) {
+    const textarea = document.getElementById('message');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selectedText = text.substring(start, end);
+    
+    let newText = '';
+    
+    switch(command) {
+        case 'bold':
+            newText = text.substring(0, start) + '<b>' + selectedText + '</b>' + text.substring(end);
+            break;
+        case 'italic':
+            newText = text.substring(0, start) + '<i>' + selectedText + '</i>' + text.substring(end);
+            break;
+        case 'underline':
+            newText = text.substring(0, start) + '<u>' + selectedText + '</u>' + text.substring(end);
+            break;
+        case 'insertUnorderedList':
+            newText = text.substring(0, start) + '\n• ' + selectedText + '\n' + text.substring(end);
+            break;
+        case 'insertOrderedList':
+            newText = text.substring(0, start) + '\n1. ' + selectedText + '\n' + text.substring(end);
+            break;
+    }
+    
+    textarea.value = newText;
+    textarea.focus();
+    updatePreview();
+}
+
+// Update preview when switching to preview tab
+document.getElementById('preview-tab').addEventListener('shown.bs.tab', function () {
+    updatePreview();
+});
+
+// Update preview content
+function updatePreview() {
+    const to = document.getElementById('to').value || '-';
+    const cc = document.getElementById('cc').value || '-';
+    const subject = document.getElementById('subject').value || 'Sin asunto';
+    const message = document.getElementById('message').value || '<em>El mensaje aparecerá aquí...</em>';
+    
+    document.getElementById('previewTo').textContent = to;
+    document.getElementById('previewCc').textContent = cc;
+    document.getElementById('previewSubject').textContent = subject;
+    document.getElementById('previewBody').innerHTML = message;
+}
+
+// Save draft
+function saveDraft() {
+    const form = document.getElementById('emailForm');
+    const action = form.action;
+    form.action = "{{ url_for('save_draft') }}";
+    form.submit();
+}
+
+// Discard draft
+function discardDraft() {
+    if (confirm('¿Estás seguro de descartar este correo?')) {
+        window.location.href = "{{ url_for('index') }}";
+    }
+}
+
+// Auto-update preview when editing
+document.getElementById('to').addEventListener('input', updatePreview);
+document.getElementById('cc').addEventListener('input', updatePreview);
+document.getElementById('subject').addEventListener('input', updatePreview);
+document.getElementById('message').addEventListener('input', updatePreview);
+
+// Auto-focus to field
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('to').focus();
+});
+</script>
+{% endblock %}

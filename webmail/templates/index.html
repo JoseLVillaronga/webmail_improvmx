@@ -11,6 +11,10 @@
                         <i class="bi bi-inbox"></i> Bandeja de entrada
                     {% elif folder == 'unread' %}
                         <i class="bi bi-envelope"></i> No leídos
+                    {% elif folder == 'sent' %}
+                        <i class="bi bi-send"></i> Enviados
+                    {% elif folder == 'drafts' %}
+                        <i class="bi bi-file-earmark"></i> Borradores
                     {% else %}
                         <i class="bi bi-envelope-open"></i> Todos los correos
                     {% endif %}
