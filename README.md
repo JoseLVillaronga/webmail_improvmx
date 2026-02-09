@@ -51,13 +51,13 @@ El archivo `.env` debe contener las siguientes variables:
 
 ```env
 # MongoDB Config
-MONGO_USER=Admin
-MONGO_PASS=sloch1618
+MONGO_USER=your_user
+MONGO_PASS=your_password
 MONGO_HOST=localhost
 MONGO_DB=webmail_improvmx
 
 # Dominio a escuchar
-DOMINIO=puntoa.ar
+DOMINIO=your_domain
 ```
 
 ## 🏃 Ejecución del Servidor
