@@ -124,7 +124,9 @@ def index():
                 "$or": [
                     {"subject": {"$regex": search_query, "$options": "i"}},
                     {"from.email": {"$regex": search_query, "$options": "i"}},
-                    {"text": {"$regex": search_query, "$options": "i"}}
+                    {"text": {"$regex": search_query, "$options": "i"}},
+                    {"to.email": {"$regex": search_query, "$options": "i"}},
+                    {"envelope.recipient": {"$regex": search_query, "$options": "i"}}
                 ]
             }
         ]
