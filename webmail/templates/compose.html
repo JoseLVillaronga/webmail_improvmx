@@ -87,6 +87,23 @@
                                     </div>
                                     
                                     <div class="col-12">
+                                        <label class="form-label">Adjuntos (Máximo 7MB total)</label>
+                                        
+                                        <!-- File Upload -->
+                                        <div class="mb-3">
+                                            <input type="file" 
+                                                   id="attachments" 
+                                                   name="attachments" 
+                                                   multiple 
+                                                   accept="*/*"
+                                                   class="form-control"
+                                                   onchange="handleFileSelection(this.files)">
+                                            <small class="text-muted" id="attachmentSizeInfo">Tamaño total: 0 MB / 7 MB</small>
+                                        </div>
+                                        
+                                        <!-- Selected Files List -->
+                                        <div id="selectedFiles" class="mb-3"></div>
+                                        
                                         <label class="form-label">Mensaje *</label>
                                         
                                         <!-- Toolbar -->
@@ -269,6 +286,28 @@
     padding: 0.25rem 0.5rem;
     font-size: 0.875rem;
 }
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.file-name {
+    flex: 1;
+    font-weight: 500;
+    color: #212529;
+}
+
+.file-size {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-right: 0.5rem;
+}
 </style>
 
 <script>
@@ -346,6 +385,92 @@ document.getElementById('message-editor').addEventListener('input', function() {
     updateMessageContent();
     updatePreview();
 });
+
+// File handling for attachments
+const MAX_SIZE = 7 * 1024 * 1024; // 7MB in bytes
+let selectedFiles = [];
+
+// Handle file selection
+function handleFileSelection(files) {
+    const filesDiv = document.getElementById('selectedFiles');
+    const sizeInfo = document.getElementById('attachmentSizeInfo');
+    
+    // Clear existing files
+    filesDiv.innerHTML = '';
+    selectedFiles = [];
+    
+    // Calculate total size
+    let totalSize = 0;
+    
+    for (let file of files) {
+        totalSize += file.size;
+        
+        // Check individual file size
+        if (file.size > MAX_SIZE) {
+            alert('El archivo "' + file.name + '" excede el límite de 7MB.');
+            document.getElementById('attachments').value = '';
+            return;
+        }
+        
+        selectedFiles.push(file);
+    }
+    
+    // Check total size
+    if (totalSize > MAX_SIZE) {
+        alert('El tamaño total de adjuntos (' + formatSize(totalSize) + ') excede el límite de 7MB. Por favor reduce el número o tamaño de archivos.');
+        document.getElementById('attachments').value = '';
+        selectedFiles = [];
+        updateSizeInfo(0);
+        filesDiv.innerHTML = '';
+        return;
+    }
+    
+    // Display selected files
+    if (selectedFiles.length > 0) {
+        selectedFiles.forEach(function(file, index) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = '<span class="file-name"><i class="bi bi-file-earmark me-2"></i>' + file.name + '</span><span class="file-size">' + formatSize(file.size) + '</span><button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="removeFile(' + index + ')"><i class="bi bi-x"></i></button>';
+            filesDiv.appendChild(fileItem);
+        });
+    }
+    
+    updateSizeInfo(totalSize);
+}
+
+// Remove a file
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    handleFileSelection(selectedFiles);
+    // Reset file input
+    document.getElementById('attachments').value = '';
+}
+
+// Format file size
+function formatSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Update size info display
+function updateSizeInfo(currentSize) {
+    const sizeInfo = document.getElementById('attachmentSizeInfo');
+    const maxSize = formatSize(MAX_SIZE);
+    const currentSizeFormatted = formatSize(currentSize);
+    sizeInfo.textContent = 'Tamaño total: ' + currentSizeFormatted + ' / ' + maxSize;
+    
+    // Change color if approaching limit
+    if (currentSize > MAX_SIZE * 0.9) {
+        sizeInfo.classList.add('text-danger');
+        sizeInfo.classList.remove('text-muted');
+    } else {
+        sizeInfo.classList.remove('text-danger');
+        sizeInfo.classList.add('text-muted');
+    }
+}
 
 // Auto-focus to field
 document.addEventListener('DOMContentLoaded', function() {
