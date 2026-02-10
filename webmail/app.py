@@ -112,8 +112,13 @@ def index():
     email_address = get_user_email()
     
     # Pagination parameters
-    page = int(request.args.get('page',1))
-    per_page = int(request.args.get('per_page', 20))
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 10))
+    
+    # Validate per_page value
+    valid_per_page_values = [10, 25, 50]
+    if per_page not in valid_per_page_values:
+        per_page = 10
     
     # Search parameters
     search_query = request.args.get('search', '').strip()
@@ -197,23 +202,26 @@ def index():
     # Handle inbox/all/unread folders (existing logic)
     # Build base query
     # Admin users see all emails when folder is 'all'
-    if is_admin() and folder == 'all':
-        query = {}
-    else:
-        # Get user data including aliases
-        user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-        aliases = user_data.get('aliases', []) if user_data else []
-        query = build_email_query(email_address, aliases)
-    
-    # Add folder filter (all/inbox/unread)
-    if folder == 'unread':
-        query['processed'] = False
-    # 'inbox' and 'all' show all emails
-    
-    # Add search filter if provided
-    if search_query:
-        query['$and'] = [
-            {
+    try:
+        # Build query based on user role and folder
+        if is_admin() and folder == 'all':
+            query = {}
+        else:
+            # Get user data including aliases
+            user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+            aliases = user_data.get('aliases', []) if user_data else []
+            query = build_email_query(email_address, aliases)
+        
+        # Add folder filter (all/inbox/unread)
+        if folder == 'unread':
+            query['processed'] = False
+        # 'inbox' and 'all' show all emails
+        
+        # Add search filter if provided
+        if search_query:
+            if '$and' not in query:
+                query['$and'] = []
+            query['$and'].append({
                 "$or": [
                     {"subject": {"$regex": search_query, "$options": "i"}},
                     {"from.email": {"$regex": search_query, "$options": "i"}},
@@ -221,57 +229,88 @@ def index():
                     {"to.email": {"$regex": search_query, "$options": "i"}},
                     {"envelope.recipient": {"$regex": search_query, "$options": "i"}}
                 ]
-            }
-        ]
-    
-    # Calculate skip value for pagination
-    skip = (page - 1) * per_page
-    
-    # Fetch emails
-    total_count = emails_collection.count_documents(query)
-    emails = list(emails_collection
-                  .find(query)
-                  .sort('received_at', -1)
-                  .skip(skip)
-                  .limit(per_page))
-    
-    # Process emails for display
-    processed_emails = []
-    for email in emails:
-        # Get actual recipient from email's 'to' field
-        to_list = email.get('to', [])
-        if to_list:
-            # Use first recipient in 'to' field
-            to_email = to_list[0].get('email', '') if isinstance(to_list[0], dict) else str(to_list[0])
-        else:
-            # Fallback to envelope recipient if no 'to' field
-            to_email = email.get('envelope', {}).get('recipient', '')
+            })
         
-        processed_email = {
-            'id': str(email['_id']),
-            'subject': email.get('subject', '(No subject)'),
-            'from_name': email.get('from', {}).get('name', ''),
-            'from_email': email.get('from', {}).get('email', ''),
-            'to_email': to_email,
-            'date': email.get('received_at', datetime.utcnow()),
-            'has_attachments': len(email.get('attachments', [])) > 0,
-            'unread': not email.get('processed', True),
-            'snippet': email.get('text', '')[:150] + '...' if email.get('text') else ''
-        }
-        processed_emails.append(processed_email)
+        # Calculate skip value for pagination
+        skip = (page - 1) * per_page
+        
+        # Fetch emails
+        total_count = emails_collection.count_documents(query)
+        emails = list(emails_collection
+                      .find(query)
+                      .sort('received_at', -1)
+                      .skip(skip)
+                      .limit(per_page))
+        
+        # Process emails for display
+        processed_emails = []
+        for email in emails:
+            try:
+                # Get actual recipient from email's 'to' field
+                to_list = email.get('to', [])
+                if to_list and len(to_list) > 0:
+                    # Use first recipient in 'to' field
+                    first_recipient = to_list[0]
+                    if isinstance(first_recipient, dict):
+                        to_email = first_recipient.get('email', '')
+                    else:
+                        to_email = str(first_recipient)
+                else:
+                    # Fallback to envelope recipient if no 'to' field
+                    envelope = email.get('envelope', {})
+                    if isinstance(envelope, dict):
+                        to_email = envelope.get('recipient', '')
+                    else:
+                        to_email = ''
+                
+                # Get 'from' field safely
+                from_field = email.get('from', {})
+                if isinstance(from_field, dict):
+                    from_name = from_field.get('name', '')
+                    from_email_addr = from_field.get('email', '')
+                else:
+                    from_name = ''
+                    from_email_addr = str(from_field) if from_field else ''
+                
+                # Get date safely
+                date_field = email.get('received_at')
+                if date_field is None:
+                    date_field = datetime.utcnow()
+                
+                processed_email = {
+                    'id': str(email['_id']),
+                    'subject': email.get('subject', '(No subject)') or '(No subject)',
+                    'from_name': from_name,
+                    'from_email': from_email_addr,
+                    'to_email': to_email or 'No recipient',
+                    'date': date_field,
+                    'has_attachments': len(email.get('attachments', [])) > 0,
+                    'unread': not email.get('processed', True),
+                    'snippet': (email.get('text', '')[:150] + '...') if email.get('text') else ''
+                }
+                processed_emails.append(processed_email)
+            except Exception as e:
+                logger.error(f"Error processing email {email.get('_id')}: {str(e)}")
+                continue
+        
+        # Calculate pagination info
+        total_pages = (total_count + per_page - 1) // per_page
+        
+        # Render template
+        return render_template('index.html',
+                              email_address=email_address,
+                              emails=processed_emails,
+                              page=page,
+                              per_page=per_page,
+                              total_pages=total_pages,
+                              total_count=total_count,
+                              search_query=search_query,
+                              folder=folder)
     
-    # Calculate pagination info
-    total_pages = (total_count + per_page - 1) // per_page
-    
-    return render_template('index.html',
-                          email_address=email_address,
-                          emails=processed_emails,
-                          page=page,
-                          per_page=per_page,
-                          total_pages=total_pages,
-                          total_count=total_count,
-                          search_query=search_query,
-                          folder=folder)
+    except Exception as e:
+        logger.error(f"Error in folder {folder}: {str(e)}", exc_info=True)
+        flash(f'Error al cargar correos: {str(e)}', 'error')
+        return redirect(url_for('index', folder=folder))
 
 
 @app.route('/view/<email_id>')
