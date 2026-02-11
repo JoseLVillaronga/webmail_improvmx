@@ -16,10 +16,21 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Initialize rate limiter
+# Configure Flask to trust headers from Caddy proxy
+app.config['TRUSTED_PROXIES'] = ['127.0.0.1', '::1']
+app.config['FORWARDED_FOR_HEADER'] = 'X-Forwarded-For'
+
+# Custom function to get real client IP from X-Forwarded-For
+def get_real_remote_address():
+    """Get real client IP from X-Forwarded-For header"""
+    if request.headers.getlist('X-Forwarded-For'):
+        return request.headers.getlist('X-Forwarded-For')[0]
+    return request.remote_addr
+
+# Initialize rate limiter with custom IP function
 limiter = Limiter(
     app=app,
-    key_func=get_remote_address,
+    key_func=get_real_remote_address,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
     strategy="fixed-window"
@@ -91,7 +102,8 @@ def require_api_key(f):
     """Decorator to require API key authentication with brute force protection"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        ip = request.remote_addr
+        # Get real client IP from X-Forwarded-For
+        ip = get_real_remote_address()
         
         # Check brute force protection
         block_remaining = check_brute_force_protection(ip)
