@@ -166,6 +166,16 @@
         // Auto-focus email field
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('email').focus();
+            
+            // Auto-dismiss alerts after 10 seconds
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                setTimeout(function() {
+                    // Create a Bootstrap alert instance and hide it
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 10000); // 10 seconds
+            });
         });
     </script>
 </body>

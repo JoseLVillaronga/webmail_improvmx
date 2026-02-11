@@ -327,6 +327,119 @@ Cada correo se almacena en la colección `emails` con el siguiente esquema:
 }
 ```
 
+## 🔐 Seguridad
+
+### Características de Seguridad Implementadas
+
+1. **Autenticación Bearer Token:** Todos los endpoints protegidos requieren autenticación vía Bearer Token
+
+2. **Rate Limiting:** Límites de velocidad para prevenir abuso y asegurar uso justo del API
+
+3. **Protección contra Fuerza Bruta:** Bloqueo automático de IPs con múltiples intentos fallidos de autenticación
+
+4. **SSL/TLS:** **Importante** - Este webhook NO configura SSL/TLS. La gestión de SSL se realiza exclusivamente mediante Caddy, que actúa como reverse proxy y maneja automáticamente los certificados HTTPS.
+
+### Configuración de Variables de Entorno
+
+El archivo `.env` debe incluir la variable de autenticación:
+
+```env
+# API Authentication
+API_KEY=your_secure_256_bit_token_here
+
+# MongoDB Config
+MONGO_USER=your_user
+MONGO_PASS=your_password
+MONGO_HOST=localhost
+MONGO_DB=webmail_improvmx
+
+# Dominio a escuchar
+DOMINIO=your_domain
+```
+
+### Endpoints y Autenticación
+
+#### Endpoints Públicos (Sin Autenticación)
+
+| Método | Endpoint | Descripción | Rate Limit |
+|--------|----------|-------------|------------|
+| GET | `/docs` | Documentación del API | 60/minuto |
+| POST | `/webhook` | Recepción de correos desde ImprovMX | 200/minuto |
+
+#### Endpoints Protegidos (Requieren Autenticación)
+
+| Método | Endpoint | Descripción | Rate Limit |
+|--------|----------|-------------|------------|
+| GET | `/` | Health check | 30/minuto |
+| GET | `/emails` | Listar correos | 20/minuto |
+| GET | `/emails/<email_id>` | Obtener correo específico | 30/minuto |
+| GET | `/emails/<email_id>/attachment/<name>` | Descargar adjunto | 10/minuto |
+
+### Uso de la API con Autenticación
+
+Para acceder a los endpoints protegidos, debes incluir el header de autorización:
+
+```bash
+curl -X GET http://localhost:42010/emails \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Rate Limiting
+
+**Límites globales por IP:**
+- 200 solicitudes por día
+- 50 solicitudes por hora
+
+**Respuesta cuando se excede el límite:**
+```json
+{
+  "error": "Rate limit exceeded: 30 per 1 minute"
+}
+```
+
+**Código HTTP:** 429 Too Many Requests
+
+### Protección contra Fuerza Bruta
+
+**Reglas:**
+- Máximo 5 intentos fallidos de autenticación
+- Intentos contados en ventana de 5 minutos
+- Bloqueo de IP por 15 minutos tras exceder límite
+- Limpieza automática de intentos antiguos
+
+**Respuesta cuando IP está bloqueada:**
+```json
+{
+  "success": false,
+  "error": "Too many failed attempts. Please try again later."
+}
+```
+
+**Código HTTP:** 429 Too Many Requests
+
+### Documentación Completa
+
+Para más detalles sobre autenticación, rate limiting y seguridad, consulta:
+
+- **`API_AUTHENTICATION.md`** - Documentación completa de seguridad del API
+  - Explicación detallada de autenticación Bearer Token
+  - Tablas de rate limiting por endpoint
+  - Ejemplos de uso en cURL, Python y JavaScript
+  - Guía de testing de características de seguridad
+  - Sección de troubleshooting
+
+### Sugerencias Adicionales de Seguridad
+
+1. **Rotación de API Keys:** Rotar regularmente las claves API para mantener la seguridad
+
+2. **IP Whitelisting:** Considera implementar whitelisting de IPs para endpoints sensibles
+
+3. **Monitoring:** Implementar monitoreo de intentos fallidos y actividades sospechosas
+
+4. **Log Rotation:** Configurar rotación de logs para mantener el sistema limpio
+
+5. **Firewall:** Configura tu firewall para permitir tráfico solo en el puerto 42010 desde Caddy
+
 ## 🔧 Configuración de Gunicorn
 
 El archivo `gunicorn.conf.py` contiene la configuración de producción:
@@ -344,43 +457,6 @@ Para ajustar el número de workers según tu carga:
 workers = 4  # Ajusta según necesidad
 ```
 
-## 🔐 Seguridad
-
-### Consideraciones de Seguridad
-
-1. **SSL/TLS:** **Importante** - Este webhook NO configura SSL/TLS. La gestión de SSL se realiza exclusivamente mediante Caddy, que actúa como reverse proxy y maneja automáticamente los certificados HTTPS.
-
-2. **Autenticación:** Actualmente no hay autenticación en los endpoints. Considera agregar:
-   - API Keys
-   - JWT tokens
-   - OAuth
-
-3. **Rate Limiting:** Implementa límites de velocidad para prevenir abusos
-
-4. **Validación de Entrada:** Los datos se validan básicamente. Considera usar una librería de validación más robusta.
-
-5. **Firewall:** Configura tu firewall para permitir tráfico solo en el puerto 42010 desde Caddy
-
-### Sugerencias de Mejoras de Seguridad
-
-```python
-# Agregar autenticación básica con API Key
-from functools import wraps
-
-def require_api_key(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        api_key = request.headers.get('X-API-Key')
-        if not api_key or api_key != os.getenv('API_KEY'):
-            return jsonify({'error': 'Invalid API key'}), 401
-        return f(*args, **kwargs)
-    return decorated_function
-
-@app.route('/webhook', methods=['POST'])
-@require_api_key
-def receive_email():
-    # ...
-```
 
 ## 🐛 Solución de Problemas
 

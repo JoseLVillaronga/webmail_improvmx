@@ -11,7 +11,7 @@ worker_class = "sync"
 worker_connections = 1000
 max_requests = 1000
 max_requests_jitter = 50
-timeout = 350
+timeout = 60
 keepalive = 2
 
 # Process naming

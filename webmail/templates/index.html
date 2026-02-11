@@ -4,6 +4,18 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else 'success') }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
             <!-- Page Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0">
@@ -227,6 +239,16 @@
         if (searchInput) {
             searchInput.focus();
         }
+        
+        // Auto-dismiss alerts after 10 seconds
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(function(alert) {
+            setTimeout(function() {
+                // Create a Bootstrap alert instance and hide it
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 10000); // 10 seconds
+        });
     });
 </script>
 {% endblock %}
