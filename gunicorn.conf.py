@@ -21,6 +21,9 @@ proc_name = "improvmx-webhook"
 accesslog = "-"
 errorlog = "-"
 loglevel = "info"
+# Note: %(h)s will show 127.0.0.1 when behind Caddy proxy
+# The real IP is in X-Forwarded-For header which Flask handles
+# Flask will log the real IP for rate limiting and brute force protection
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
 # Process management

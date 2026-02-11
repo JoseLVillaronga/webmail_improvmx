@@ -27,6 +27,15 @@ def get_real_remote_address():
         return request.headers.getlist('X-Forwarded-For')[0]
     return request.remote_addr
 
+# Middleware to log real client IP for each request
+@app.before_request
+def log_request_with_real_ip():
+    """Log request with real client IP from X-Forwarded-For"""
+    real_ip = get_real_remote_address()
+    # Log format: REAL_IP <ip> METHOD <method> PATH <path>
+    if real_ip != request.remote_addr:
+        logger.info(f"REAL_IP {real_ip} {request.method} {request.path}")
+
 # Initialize rate limiter with custom IP function
 limiter = Limiter(
     app=app,
